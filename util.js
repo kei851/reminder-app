@@ -5,6 +5,7 @@ const allMembers = memberMasterSheet.getRange(2, 1, memberMasterSheet.getLastRow
     id: row[0],           // A列: id
     name: row[1],         // B列: name 
     name_only: row[2],    // C列: name_only
+    flag: row[3],         // D列: flag
     name_26only: row[4]   // E列: name_26only
   }))
   .filter(e => e.id);
@@ -15,12 +16,27 @@ function getIdByName(name) {
   return member ? member.id : null;
 }
 
+// チャンネル情報（全てのチャンネルシートから）
+const allChannels = channelMasterSheet.getRange(2, 1, channelMasterSheet.getLastRow() - 1, 2)
+  .getValues()
+  .map(row => ({
+    id: row[0],           // A列: id  
+    name: row[1]          // B列: name
+  }))
+  .filter(e => e.id);
+
+function getChannelIdByName(channelName) {
+  // name列で検索してIDを取得
+  const channel = allChannels.find(e => e.name === channelName);
+  return channel ? channel.id : null;
+}
+
 // リマインダー情報（リマインド文マスターシートから）
 const allReminders = reminderMasterSheet.getRange(2, 1, reminderMasterSheet.getLastRow() - 1, 5)
   .getValues()
   .map(row => ({
-    setName: row[0],         // A列: セット名
-    name: row[1],            // B列: リマインダー名
+    name: row[0],            // A列: リマインダー名
+    setName: row[1],         // B列: セット名
     timing: row[2],          // C列: タイミング
     message: row[3],         // D列: 文章
     defaultChannel: row[4],  // E列: デフォルトチャンネル
@@ -61,21 +77,15 @@ function parseTimingToDays(timing) {
   return match ? parseInt(match[1]) : 0;
 }
 
-// リマインダー種類から対象リマインダーを取得
-function getRemindersByType(reminderType) {
-  // セット名の場合：そのセットに属する全てのリマインダーを返す
-  const setReminders = allReminders.filter(r => r.setName === reminderType);
-  if (setReminders.length > 0) {
-    return setReminders;
-  }
-  
-  // 個別リマインダー名の場合：そのリマインダーのみ返す
-  const individualReminder = allReminders.find(r => r.name === reminderType);
-  return individualReminder ? [individualReminder] : [];
+// リマインダー名から対象リマインダーを取得
+function getRemindersByName(reminderName) {
+  // リマインダー名で検索
+  const reminder = allReminders.find(r => r.name === reminderName);
+  return reminder ? [reminder] : [];
 }
 
-function calculateReminderDate(submissionDate, reminderType) {
-  const targetReminders = getRemindersByType(reminderType);
+function calculateReminderDate(submissionDate, reminderName) {
+  const targetReminders = getRemindersByName(reminderName);
   const results = [];
   
   targetReminders.forEach(reminder => {

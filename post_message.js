@@ -34,6 +34,6 @@ function setThreadTs(threadGroup, threadTs) {
 // スレッドリンクをスプレッドシートに記録
 function updateThreadLinks(peopleData, threadLink) {
   peopleData.forEach(person => {
-    personalSettingSheet.getRange(person.rowIndex, 4).setValue(threadLink);
+    personalSettingSheet.getRange(person.rowIndex, 5).setValue(threadLink);  // E列（5列目）
   });
 }

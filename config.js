@@ -8,3 +8,4 @@ const spreadSheet = SpreadsheetApp.getActiveSpreadsheet();
 const personalSettingSheet = spreadSheet.getSheetById(142041053);  // リマインダー設定
 const memberMasterSheet = spreadSheet.getSheetById(0);  // すべてのslackメンバータブ
 const reminderMasterSheet = spreadSheet.getSheetById(1622874664);  // リマインド文マスター
+const channelMasterSheet = spreadSheet.getSheetById(814773110);  // 全てのチャンネル
