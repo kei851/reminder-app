@@ -93,9 +93,30 @@ function parseTimingToDays(timing) {
 
 // リマインダー名から対象リマインダーを取得
 function getRemindersByName(reminderName) {
-  // リマインダー名で検索
-  const reminder = allReminders.find(r => r.name === reminderName);
-  return reminder ? [reminder] : [];
+  console.log(`getRemindersByName呼び出し: "${reminderName}"`);
+  
+  // 完全一致で検索
+  let reminder = allReminders.find(r => r.name === reminderName);
+  if (reminder) {
+    console.log(`完全一致で見つかりました: "${reminder.name}"`);
+    return [reminder];
+  }
+  
+  // 「テスト（0日前）」→「テスト」のように括弧内を除いて検索
+  const baseReminderName = reminderName.replace(/\s*\([^)]*\)\s*$/, '');
+  if (baseReminderName !== reminderName) {
+    console.log(`括弧を除いて再検索: "${baseReminderName}"`);
+    reminder = allReminders.find(r => r.name === baseReminderName);
+    if (reminder) {
+      console.log(`括弧なしで見つかりました: "${reminder.name}"`);
+      return [reminder];
+    }
+  }
+  
+  console.log(`リマインダーが見つかりませんでした。利用可能なリマインダー:`);
+  allReminders.forEach(r => console.log(`  - "${r.name}"`));
+  
+  return [];
 }
 
 function calculateReminderDate(submissionDate, reminderName) {

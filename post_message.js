@@ -16,10 +16,20 @@ function postMessage(message, threadTs = null, channel = null) {
     "payload": payload
   };
   
-  const response = UrlFetchApp.fetch(url, params);
-  const result = JSON.parse(response.getContentText());
-  
-  return result.ok ? result.ts : null;
+  try {
+    const response = UrlFetchApp.fetch(url, params);
+    const result = JSON.parse(response.getContentText());
+    
+    if (!result.ok) {
+      console.error(`Slack API エラー: ${result.error}`);
+      return null;
+    }
+    
+    return result.ts;
+  } catch (error) {
+    console.error(`メッセージ送信エラー: ${error.message}`);
+    return null;
+  }
 }
 
 // スレッド管理

@@ -1,5 +1,13 @@
 function hourlyCheck() {
+  console.log('=== hourlyCheck開始 ===');
+  const now = new Date();
+  const today = new Date();
+  const currentHour = now.getHours();
+  console.log(`現在時刻: ${Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy/MM/dd HH:mm:ss')}`);
+  console.log(`現在の時間: ${currentHour}時`);
+  
   const values = personalSettingSheet.getRange(2, 1, personalSettingSheet.getLastRow() - 1, 6).getValues();
+  console.log(`スプレッドシートから読み込んだデータ数: ${values.length}`);
 
   const data = values.map((row, index) => ({
     dueDate: row[0],            // A列: 本番の日付
@@ -10,17 +18,21 @@ function hourlyCheck() {
     sendTime: row[5],           // F列: 送信時間
     rowIndex: index + 2         // スプレッドシートの行番号（1-indexed + ヘッダー）
   })).filter(row => row.dueDate && row.name && row.reminderMessage);
-
-  const now = new Date();
-  const today = new Date();
-  const currentHour = now.getHours();
+  
+  console.log(`フィルタ後のデータ数: ${data.length}`);
+  data.forEach((person, index) => {
+    console.log(`${index + 1}. 期日: ${Utilities.formatDate(person.dueDate, Session.getScriptTimeZone(), 'yyyy/MM/dd')}, 名前: ${person.name}, メッセージ: ${person.reminderMessage}, 送信時間: ${person.sendTime}`);
+  });
 
   // 期日とリマインダーでグループ化（同じ期日の人をまとめる）
   const reminderGroups = {};
 
   // 今日送るべきリマインダーを確認してグループ化
+  console.log('=== リマインダー判定開始 ===');
   for (const person of data) {
+    console.log(`\n--- ${person.name}のリマインダー判定 ---`);
     const results = calculateReminderDate(person.dueDate, person.reminderMessage);
+    console.log(`リマインダー結果数: ${results.length}`);
     
     for (const result of results) {
       // 送信時間を決定（個人設定 > マスターのデフォルト）
@@ -28,8 +40,21 @@ function hourlyCheck() {
         ? person.sendTime 
         : result.reminder.sendTime;
       
+      const reminderDateStr = Utilities.formatDate(result.date, Session.getScriptTimeZone(), 'yyyy/MM/dd');
+      const todayStr = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy/MM/dd');
+      const isSameDateResult = isSameDate(result.date, today);
+      const isTimeMatch = effectiveSendTime === currentHour;
+      
+      console.log(`  リマインダー名: ${result.reminder.name}`);
+      console.log(`  リマインダー日: ${reminderDateStr} (今日: ${todayStr})`);
+      console.log(`  日付一致: ${isSameDateResult}`);
+      console.log(`  送信時間: ${effectiveSendTime}時 (現在: ${currentHour}時)`);
+      console.log(`  時間一致: ${isTimeMatch}`);
+      console.log(`  両方一致: ${isSameDateResult && isTimeMatch}`);
+      
       // 今日が送信日で、かつ現在の時間が送信時間と一致する場合のみ処理
       if (isSameDate(result.date, today) && effectiveSendTime === currentHour) {
+        console.log(`  → リマインダー送信対象に追加`);
         const groupKey = `${person.dueDate.getTime()}_${person.reminderMessage}_${result.reminder.name}`;
         
         if (!reminderGroups[groupKey]) {
@@ -44,9 +69,13 @@ function hourlyCheck() {
         
         // 期日詳細情報を追加
         reminderGroups[groupKey].reminder.deadlineDetails = formatDeadlineDetails(person.dueDate, result.reminder.daysBefore);
+      } else {
+        console.log(`  → リマインダー送信対象外`);
       }
     }
   }
+  
+  console.log(`\n=== 送信対象グループ数: ${Object.keys(reminderGroups).length} ===`);
 
   // グループごとにメンションを設定
   for (const group of Object.values(reminderGroups)) {
@@ -137,6 +166,67 @@ function testReminder() {
   console.log('テスト実行完了');
 }
 
+// デバッグ専用：データとリマインダー設定の確認
+function debugCurrentData() {
+  console.log('=== デバッグ：現在のデータ確認 ===');
+  
+  const now = new Date();
+  const timezone = Session.getScriptTimeZone();
+  console.log(`スクリプトのタイムゾーン: ${timezone}`);
+  console.log(`現在時刻: ${Utilities.formatDate(now, timezone, 'yyyy/MM/dd HH:mm:ss')}`);
+  console.log(`現在の時間: ${now.getHours()}時`);
+  console.log(`UTCとの時差: ${now.getTimezoneOffset()}分`);
+  
+  // スプレッドシートデータ確認
+  const values = personalSettingSheet.getRange(2, 1, personalSettingSheet.getLastRow() - 1, 6).getValues();
+  console.log(`\n--- スプレッドシートデータ（行数: ${values.length}）---`);
+  values.forEach((row, index) => {
+    if (row[0] && row[1] && row[2]) { // 必須項目がある行のみ
+      console.log(`${index + 2}行目: 期日=${Utilities.formatDate(row[0], Session.getScriptTimeZone(), 'yyyy/MM/dd')}, 名前=${row[1]}, メッセージ=${row[2]}, チャンネル=${row[3]}, 送信時間=${row[5]}`);
+    }
+  });
+  
+  // リマインダーマスター確認
+  console.log(`\n--- リマインダーマスター（行数: ${allReminders.length}）---`);
+  allReminders.forEach((reminder, index) => {
+    console.log(`${index + 1}. 名前="${reminder.name}", タイミング="${reminder.timing}"(${typeof reminder.timing}), 送信時間=${reminder.sendTime}時`);
+  });
+  
+  // 今日のリマインダー計算テスト
+  console.log(`\n--- 今日のリマインダー計算テスト ---`);
+  const testData = values.filter(row => row[0] && row[1] && row[2]);
+  testData.forEach((row, index) => {
+    const dueDate = row[0];
+    const name = row[1];
+    const reminderMessage = row[2];
+    const sendTime = row[5];
+    
+    console.log(`\n${name}のテスト:`);
+    console.log(`  期日: ${Utilities.formatDate(dueDate, Session.getScriptTimeZone(), 'yyyy/MM/dd')}`);
+    console.log(`  リマインダーメッセージ: ${reminderMessage}`);
+    console.log(`  個人送信時間: ${sendTime}`);
+    
+    const results = calculateReminderDate(dueDate, reminderMessage);
+    console.log(`  計算結果数: ${results.length}`);
+    
+    results.forEach((result, i) => {
+      const reminderDateStr = Utilities.formatDate(result.date, Session.getScriptTimeZone(), 'yyyy/MM/dd');
+      const effectiveSendTime = sendTime !== null && sendTime !== undefined ? sendTime : result.reminder.sendTime;
+      const isTodayReminder = isSameDate(result.date, now);
+      const isTimeMatch = effectiveSendTime === now.getHours();
+      
+      console.log(`    ${i + 1}. リマインダー名: ${result.reminder.name}`);
+      console.log(`       リマインダー日: ${reminderDateStr}`);
+      console.log(`       送信時間: ${effectiveSendTime}時`);
+      console.log(`       今日のリマインダー: ${isTodayReminder}`);
+      console.log(`       時間一致: ${isTimeMatch}`);
+      console.log(`       送信対象: ${isTodayReminder && isTimeMatch}`);
+    });
+  });
+  
+  console.log('=== デバッグデータ確認完了 ===');
+}
+
 // 特定の時間のリマインダーをテスト
 function testReminderAtHour(hour) {
   console.log(`${hour}時のリマインダーテスト開始`);
@@ -154,6 +244,86 @@ function testReminderAtHour(hour) {
   }
   
   console.log(`${hour}時のリマインダーテスト完了`);
+}
+
+// 現在時刻でのテスト（送信時間を無視）
+function testReminderNow() {
+  console.log('=== 現在時刻でのリマインダーテスト（送信時間無視）===');
+  
+  const values = personalSettingSheet.getRange(2, 1, personalSettingSheet.getLastRow() - 1, 6).getValues();
+  const data = values.map((row, index) => ({
+    dueDate: row[0],
+    name: row[1],
+    reminderMessage: row[2],
+    channel: row[3],
+    threadLink: row[4],
+    sendTime: row[5],
+    rowIndex: index + 2
+  })).filter(row => row.dueDate && row.name && row.reminderMessage);
+
+  const now = new Date();
+  const today = new Date();
+  
+  console.log(`現在時刻: ${Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy/MM/dd HH:mm:ss')}`);
+  
+  for (const person of data) {
+    console.log(`\n--- ${person.name}のテスト ---`);
+    const results = calculateReminderDate(person.dueDate, person.reminderMessage);
+    
+    for (const result of results) {
+      const reminderDateStr = Utilities.formatDate(result.date, Session.getScriptTimeZone(), 'yyyy/MM/dd');
+      const todayStr = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy/MM/dd');
+      const isTodayReminder = isSameDate(result.date, today);
+      
+      console.log(`  リマインダー名: ${result.reminder.name}`);
+      console.log(`  リマインダー日: ${reminderDateStr} (今日: ${todayStr})`);
+      console.log(`  今日のリマインダー: ${isTodayReminder}`);
+      
+      if (isTodayReminder) {
+        console.log(`  → 今日送信すべきリマインダーです！`);
+        
+        // 強制送信テスト
+        const finalMessage = `テスト送信: <@${getIdByName(person.name)}>\n${result.reminder.message}`;
+        const targetChannelId = person.channel ? getChannelIdByName(person.channel) : channelId;
+        
+        console.log(`  送信先チャンネル: ${targetChannelId}`);
+        console.log(`  送信メッセージ: ${finalMessage}`);
+        
+        // 実際に送信（コメントアウトを外して実行）
+        // const sendResult = postMessage(finalMessage, null, targetChannelId);
+        // console.log(`  送信結果: ${sendResult}`);
+      }
+    }
+  }
+  
+  console.log('=== テスト完了 ===');
+}
+
+// タイムゾーン確認・設定
+function checkAndSetTimezone() {
+  console.log('=== タイムゾーン確認 ===');
+  
+  const currentTimezone = Session.getScriptTimeZone();
+  console.log(`現在のタイムゾーン: ${currentTimezone}`);
+  
+  const now = new Date();
+  console.log(`現在時刻（UTC）: ${now.toISOString()}`);
+  console.log(`現在時刻（スクリプト設定）: ${Utilities.formatDate(now, currentTimezone, 'yyyy/MM/dd HH:mm:ss')}`);
+  console.log(`getHours()の値: ${now.getHours()}`);
+  console.log(`UTCとの時差: ${now.getTimezoneOffset()}分`);
+  
+  // 日本時間の確認
+  const jstTime = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
+  console.log(`日本時間: ${jstTime}`);
+  
+  if (currentTimezone !== 'Asia/Tokyo') {
+    console.log('警告: タイムゾーンが日本時間（Asia/Tokyo）に設定されていません！');
+    console.log('Google Apps Scriptの設定で Asia/Tokyo に変更してください。');
+  } else {
+    console.log('✓ タイムゾーンは正しく日本時間に設定されています。');
+  }
+  
+  console.log('=== タイムゾーン確認完了 ===');
 }
 
 // 1時間ごとの定期実行トリガー設定
