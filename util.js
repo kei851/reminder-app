@@ -32,16 +32,18 @@ function getChannelIdByName(channelName) {
 }
 
 // リマインダー情報（リマインド文マスターシートから）
-const allReminders = reminderMasterSheet.getRange(2, 1, reminderMasterSheet.getLastRow() - 1, 5)
+const allReminders = reminderMasterSheet.getRange(2, 1, reminderMasterSheet.getLastRow() - 1, 6)
   .getValues()
   .map(row => ({
-    name: row[0],            // A列: リマインダー名
-    setName: row[1],         // B列: セット名
-    timing: row[2],          // C列: タイミング
-    message: row[3],         // D列: 文章
-    defaultChannel: row[4],  // E列: デフォルトチャンネル
-    mention: ''              // 送信時に使用
-  }));
+    name: row[0] ? String(row[0]).trim() : '',           // A列: リマインダー名
+    setName: row[1] ? String(row[1]).trim() : '',        // B列: セット名
+    timing: row[2],                                      // C列: タイミング（数値または文字列）
+    message: row[3] ? String(row[3]).trim() : '',        // D列: 文章
+    defaultChannel: row[4] ? String(row[4]).trim() : '', // E列: デフォルトチャンネル
+    sendTime: row[5] || 9,                               // F列: 送信時間（デフォルト9時）
+    mention: ''                                          // 送信時に使用
+  }))
+  .filter(reminder => reminder.name && (reminder.timing || reminder.timing === 0)); // 必須フィールドがあるもののみ
 
 // 期日詳細を計算する関数
 function formatDeadlineDetails(submissionDate, daysBefore) {
@@ -71,10 +73,22 @@ function formatDeadlineDetails(submissionDate, daysBefore) {
   }
 }
 
-// タイミング文字列から日数を抽出する関数
+// タイミングから日数を抽出する関数
 function parseTimingToDays(timing) {
-  const match = timing.match(/(\d+)日前/);
-  return match ? parseInt(match[1]) : 0;
+  // 数値の場合はそのまま返す
+  if (typeof timing === 'number') {
+    return timing;
+  }
+  
+  // 文字列の場合は「◯日前」形式から数値を抽出
+  if (typeof timing === 'string') {
+    const match = timing.match(/(\d+)日前/);
+    return match ? parseInt(match[1]) : 0;
+  }
+  
+  // その他の場合
+  console.warn(`無効なタイミング値: ${timing} (型: ${typeof timing})`);
+  return 0;
 }
 
 // リマインダー名から対象リマインダーを取得
@@ -109,4 +123,13 @@ function isSameDate(date1, date2) {
   return date1.getFullYear() === date2.getFullYear() && 
          date1.getMonth() === date2.getMonth() && 
          date1.getDate() === date2.getDate();
+}
+
+// デバッグ用：リマインダーデータの確認
+function debugReminders() {
+  console.log('=== リマインダーデータ確認 ===');
+  allReminders.forEach((reminder, index) => {
+    console.log(`${index + 1}. ${reminder.name} | タイミング: "${reminder.timing}" (型: ${typeof reminder.timing})`);
+  });
+  console.log('=========================');
 }
