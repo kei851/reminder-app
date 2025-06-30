@@ -36,7 +36,7 @@ function hourlyCheck() {
     
     for (const result of results) {
       // 送信時間を決定（個人設定 > マスターのデフォルト）
-      const effectiveSendTime = person.sendTime !== null && person.sendTime !== undefined 
+      const effectiveSendTime = (person.sendTime !== null && person.sendTime !== undefined && person.sendTime !== '') 
         ? person.sendTime 
         : result.reminder.sendTime;
       
@@ -211,7 +211,7 @@ function debugCurrentData() {
     
     results.forEach((result, i) => {
       const reminderDateStr = Utilities.formatDate(result.date, Session.getScriptTimeZone(), 'yyyy/MM/dd');
-      const effectiveSendTime = sendTime !== null && sendTime !== undefined ? sendTime : result.reminder.sendTime;
+      const effectiveSendTime = (sendTime !== null && sendTime !== undefined && sendTime !== '') ? sendTime : result.reminder.sendTime;
       const isTodayReminder = isSameDate(result.date, now);
       const isTimeMatch = effectiveSendTime === now.getHours();
       
@@ -324,6 +324,12 @@ function checkAndSetTimezone() {
   }
   
   console.log('=== タイムゾーン確認完了 ===');
+}
+
+// 現在時刻（15時）でのテスト実行
+function testReminderAt15() {
+  console.log('=== 15時のリマインダーテスト ===');
+  testReminderAtHour(15);
 }
 
 // 1時間ごとの定期実行トリガー設定
